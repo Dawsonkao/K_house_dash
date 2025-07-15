@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import os
 os.chdir(os.path.dirname(__file__))
 
-with open("data/K.geojson", encoding="utf-8") as f:
+with open("data/kaohsiung_region.geojson", encoding="utf-8") as f:
     geojson = json.load(f)
 region_data = gpd.GeoDataFrame.from_features(geojson["features"])
 region_data['centroid'] = region_data.geometry.centroid
