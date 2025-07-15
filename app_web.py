@@ -147,6 +147,8 @@ def display_info(n_clicks, info_box_content):
 #程式會自行設置http://127.0.0.1:8050作為本地伺服器
 if __name__ == "__main__":
     #app.run(debug=True)
-    app.run(debug=True, use_reloader=False, dev_tools_ui=False,port=8050)
+    port = int(os.environ.get("PORT", 8050))
+    app.run_server(host="0.0.0.0", port=port)
+    #app.run(debug=True, use_reloader=False, dev_tools_ui=False,port=8050)
 
 
