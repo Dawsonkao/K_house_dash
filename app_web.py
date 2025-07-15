@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, State
 import geopandas as gpd
-from shapely.geometry import Point
+#from shapely.geometry import Point
 import plotly.graph_objects as go
 
 import os

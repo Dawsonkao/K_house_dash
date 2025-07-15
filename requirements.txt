@@ -2,5 +2,3 @@ pandas
 plotly
 dash
 geopandas
-shapely.geometry
-gunicorn
