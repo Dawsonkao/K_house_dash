@@ -2,7 +2,7 @@ import json
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output, State
+from dash import Dash, dcc, html, Input, Output, State, dash_table
 import geopandas as gpd
 #from shapely.geometry import Point
 import plotly.graph_objects as go
@@ -21,10 +21,11 @@ label_col = 'TOWNNAME'
 # 讀取點資料
 df = pd.read_csv("data/KH_case_s3_20250627b.csv")  # 欄位應包含 lat, lon, name, info 等
 
+#資料處理
+df2 = pd.DataFrame(df['district'].value_counts()).reset_index()  # 將索引重置為普通列
+df2.columns = ['district', 'count']  # 重命名列
 
 # 建立地圖 figure
-
-
 # === 1. 建立 Choroplethmap 行政區多邊形 ===
 fig = go.Figure(go.Choroplethmap(
     geojson=geojson,
@@ -54,8 +55,10 @@ fig.add_trace(go.Scattermap(
     lon=df['lon'],
     mode='markers',
     marker=dict(size=8, color='gray'),
-    text=df.apply(lambda row: f"個案：{row['case']}<br>行政區：{row['district']}", axis=1),
-    customdata=df['url'],  # 添加 url 資訊到 customdata
+    #text=df.apply(lambda row: f"個案：{row['case']}<br>行政區：{row['district']}", axis=1),
+    text=df['case'],
+    
+    customdata=df.apply(lambda row: [row['url'], row['district'], row['firm']], axis=1),  # 添加 url 和 district 到 customdata
     hoverinfo='text',
     name='個案',
 ))
@@ -86,6 +89,7 @@ app.layout = html.Div([
 ])
 '''
 app.layout = html.Div([
+    html.H1("高都觀測站 Dashboard", style={"textAlign": "left", "marginBottom": "15px"}),  # 新增標題
     html.Div([
         dcc.Graph(id="map", figure=fig, style={"height": "80vh"}),  # 地圖
     ], style={"width": "70%", "display": "inline-block", "verticalAlign": "top"}),  # 左側區塊
@@ -93,12 +97,25 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             html.Div(id="info-box", style={"marginTop": "20px", "fontSize": "18px"}),  # 顯示點擊的資訊
-            html.Button("顯示資訊", id="info-button", style={"marginTop": "20px"}),  # 按鈕
+            #html.Button("顯示資訊", id="info-button", style={"marginTop": "20px"}),  # 按鈕
         ], style={"height": "50%", "borderBottom": "1px solid #ccc"}),  # 上半部分
 
         html.Div([
+            html.H2("透過過濾建商更新地圖、呈現該區有什麼其他建案", style={"textAlign": "left", "marginBottom": "13px"}),  # 開發中
             html.Div(id="extra-info", style={"marginTop": "20px", "fontSize": "16px"}),  # 顯示額外資訊
             html.Button("額外功能按鈕", id="extra-button", style={"marginTop": "20px"}),  # 額外按鈕
+            #dash_table.DataTable(
+            #    df2.to_dict('records'),  # 確保 df 中有這些欄位
+            #    style_table={'height': '100%', 'overflowY': 'auto'},  # 增加樣式以防止表格溢出
+            #    style_cell={'textAlign': 'left', 'fontSize': '14px'}  # 設定表格文字樣式
+            #)
+
+            dash_table.DataTable(
+                id="firm_table",  # 新增唯一的 ID
+                columns=[{"name": "建商", "id": "firm"}, {"name": "建案", "id": "case_name"}],  # 定義表格的列
+                style_table={'height': '100%', 'overflowY': 'auto'},  # 增加樣式以防止表格溢出
+                style_cell={'textAlign': 'left', 'fontSize': '14px'}  # 設定表格文字樣式
+            )
         ], style={"height": "50%"}),  # 下半部分
     ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),  # 右側區塊
 ])
@@ -107,37 +124,73 @@ app.layout = html.Div([
 
 # 加入互動 callback
 @app.callback(
-    Output("info-box", "children"),
+    Output("info-output", "children"),
+    Input("info-button", "n_clicks"),
+    State("info-box", "children")
+)
+
+@app.callback(
+    Output("firm_table", "data"),
     Input("map", "clickData")
 )
 
+def update_firm_info(click_data):
+    if click_data is None:
+        return []  # 如果沒有點擊事件，返回空列表
+
+    try:
+        point_info = click_data["points"][0]
+        customdata = point_info.get("customdata", ["無相關連結", "未有資料", "未有資料"])
+        empty_data = {"firm":"無資料", "case_name":"無資料"}
+        # 確保 customdata 有足夠的值
+        #if len(customdata) < 3:
+        #    return []
+
+        firm = customdata[2]  # 第三個值是 firm
+        
+        # 確保 df 中有 'firm' 欄位
+        if "firm" not in df.columns:
+            return empty_data
+
+        result = df[df["firm"] == firm]
+        result = result[["firm", "case_name"]]  # 只保留 district 和 firm 欄位，並去除重複值
+        return result.to_dict('records')  # 回傳字典列表
+        
+    except Exception as e:
+        print(f"Error in update_firm_info: {e}")
+        return empty_data  # 如果發生錯誤，返回空列表
+
+
+@app.callback(
+    Output("info-box", "children"),
+    Input("map", "clickData")
+)
 
 def update_info_box(click_data):
     if click_data is None:
         return "尚未點擊地圖上的點"
     
-    # 獲取點擊的點資訊
     point_info = click_data["points"][0]
-    name = point_info.get("text", "未知名稱")  # 假設點的名稱在 text 欄位
+    name = point_info.get("text", "未知名稱")
     lat = point_info.get("lat", "未知緯度")
     lon = point_info.get("lon", "未知經度")
-    url = point_info.get("customdata", "無相關連結")  # 確認 customdata 是否存在
 
-    # 返回包含 url 的資訊
-    return f"""
-    點擊的點資訊：
-    名稱：{name}
-    緯度：{lat}
-    經度：{lon}
-    相關連結：<a href="{url}" target="_blank">{url}</a>
-    """
+    customdata = point_info.get("customdata", ["無相關連結", "未有資料","未有資料"])
+    url = customdata[0]  # 第一個值是 url
+    district = customdata[1]  # 第二個值是 district
+    
+    return html.Div([
+        html.P(f"點擊的點資訊：", style={"fontSize": "22px"}),
+        html.P(f"名稱：{name}", style={"fontSize": "12px"}),
+        html.P(f"行政區：{district}", style={"fontSize": "12px"}),
+        html.P(f"緯度：{lat:.4f}", style={"fontSize": "12px"}),
+        html.P(f"經度：{lon:.4f}", style={"fontSize": "12px"}),
+        html.A('點我開啟相簿', style={"fontSize": "12px"}, href=url, target="_blank") if url else "無"
+    ])
 
 
-@app.callback(
-    Output("info-output", "children"),
-    Input("info-button", "n_clicks"),
-    State("info-box", "children")
-)
+
+
 def display_info(n_clicks, info_box_content):
     if n_clicks is None or n_clicks == 0:
         return "尚未點擊按鈕"
