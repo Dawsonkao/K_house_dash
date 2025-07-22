@@ -19,7 +19,7 @@ region_data['centroid_lat'] = region_data['centroid'].y
 label_col = 'TOWNNAME'
 
 # 讀取點資料
-df = pd.read_csv("data/KH_case_s3_20250627b.csv")  # 欄位應包含 lat, lon, name, info 等
+df = pd.read_csv("data/KH_case_s3_20250723e.csv")  # 欄位應包含 lat, lon, name, info 等
 
 #資料處理
 df2 = pd.DataFrame(df['district'].value_counts()).reset_index()  # 將索引重置為普通列
